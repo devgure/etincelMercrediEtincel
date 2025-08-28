@@ -1,0 +1,111 @@
+// data/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model User {
+  id              String   @id @default(auto()) @map("_id")
+  email           String   @unique
+  phone           String?  @unique
+  password        String
+  name            String
+  bio             String?
+  birthDate       DateTime
+  gender          Gender
+  preferredGender Gender
+  photos          Photo[]
+  location        Json?    // { type: "Point", coordinates: [lng, lat] }
+  preferences     Preference?
+  isVerified      Boolean  @default(false)
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([location], type: Gi) // Geospatial
+}
+
+model Photo {
+  id       String   @id @default(auto()) @map("_id")
+  url      String
+  isPrimary Boolean @default(false)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  facialFeatures Json? // Embedded face encoding
+  verified Boolean  @default(false)
+}
+
+model Preference {
+  id             String   @id @default(auto()) @map("_id")
+  distanceRadius Int      @default(50) // km
+  minAge         Int      @default(18)
+  maxAge         Int      @default(99)
+  showMe         Gender
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+}
+
+model Match {
+  id        String   @id @default(auto()) @map("_id")
+  user1Id   String
+  user2Id   String
+  user1     User     @relation("MatchUser1", fields: [user1Id], references: [id])
+  user2     User     @relation("MatchUser2", fields: [user2Id], references: [id])
+  matchedAt DateTime @default(now())
+  chatRoom  ChatRoom?
+  @@unique([user1Id, user2Id])
+}
+
+model ChatRoom {
+  id        String    @id @default(auto()) @map("_id")
+  match     Match     @relation(fields: [matchId], references: [id])
+  matchId   String    @unique
+  messages  Message[]
+  createdAt DateTime  @default(now())
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id")
+  chatRoom  ChatRoom @relation(fields: [chatRoomId], references: [id])
+  chatRoomId String
+  senderId  String
+  text      String?
+  imageUrl  String?
+  timestamp DateTime @default(now())
+  isRead    Boolean  @default(false)
+}
+
+model Subscription {
+  id            String   @id @default(auto()) @map("_id")
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  plan          Plan     @default(FREE)
+  status        Status   @default(active)
+  stripeId      String?  @unique
+  currentPeriodEnd DateTime?
+  createdAt     DateTime @default(now())
+}
+
+enum Plan {
+  FREE
+  PREMIUM
+  GOLD
+}
+
+enum Status {
+  active
+  canceled
+  past_due
+  unpaid
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+}
